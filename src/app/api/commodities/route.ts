@@ -28,9 +28,9 @@ export async function GET() {
                     commodity: r.commodity || r.Commodity,
                     market: r.market || r.Market,
                     state: r.state || r.State,
-                    minPrice: parseFloat(r.min_price || r.Min_x0020_Price || '0'),
-                    maxPrice: parseFloat(r.max_price || r.Max_x0020_Price || '0'),
-                    modalPrice: parseFloat(r.modal_price || r.Modal_x0020_Price || '0'),
+                    minPrice: parseFloat((r.min_price || r.Min_x0020_Price || '0').replace(/,/g, '')),
+                    maxPrice: parseFloat((r.max_price || r.Max_x0020_Price || '0').replace(/,/g, '')),
+                    modalPrice: parseFloat((r.modal_price || r.Modal_x0020_Price || '0').replace(/,/g, '')),
                     date: r.arrival_date || r.Arrival_Date || new Date().toISOString().split('T')[0],
                 }));
                 return NextResponse.json({ commodities, source: 'data.gov.in' });

@@ -32,6 +32,9 @@ export default function GroupsPage() {
             })) as FPOGroup[];
             setGroups(items);
             setLoading(false);
+        }, (error) => {
+            console.error("Firestore error in groups:", error);
+            setLoading(false);
         });
         return () => unsub();
     }, []);

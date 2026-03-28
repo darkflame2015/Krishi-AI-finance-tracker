@@ -51,6 +51,9 @@ export default function LoansPage() {
             })) as Loan[];
             setLoans(items);
             setLoading(false);
+        }, (error) => {
+            console.error("Firestore error in loans:", error);
+            setLoading(false);
         });
 
         return () => unsub();
