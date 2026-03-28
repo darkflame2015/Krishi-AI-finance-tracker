@@ -3,10 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
-import {
-    collection, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
     HiOutlineCheckCircle,
     HiOutlineXCircle,
@@ -30,8 +27,8 @@ interface Loan {
     amountPaid: number;
     landSize?: number;
     cropType?: string;
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt: string;
+    updatedAt: string;
     adminNotes?: string;
 }
 
@@ -46,33 +43,40 @@ export default function AdminPage() {
     const [filter, setFilter] = useState<string>('all');
 
     useEffect(() => {
-        const q = query(
-            collection(db, 'loans'),
-            orderBy('createdAt', 'desc')
-        );
-
-        const unsub = onSnapshot(q, (snap) => {
-            const items: Loan[] = snap.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-            })) as Loan[];
-            setLoans(items);
+        if (!isSupabaseConfigured) {
             setLoading(false);
-        });
+            return;
+        }
 
-        return () => unsub();
+        const fetchLoans = async () => {
+            const { data, error } = await supabase.from('loans').select('*').order('createdAt', { ascending: false });
+            if (data) {
+                setLoans(data as Loan[]);
+            }
+            setLoading(false);
+        };
+        fetchLoans();
+
+        const channel = supabase.channel('public:loans')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'loans' }, () => {
+                fetchLoans();
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, []);
 
     const handleAction = async (loan: Loan, action: 'approved' | 'rejected' | 'under_review') => {
         if (!profile) return;
         setProcessing(true);
         try {
-            await updateDoc(doc(db, 'loans', loan.id), {
-                status: action,
-                adminNotes: adminNotes || undefined,
-                updatedAt: serverTimestamp(),
-                reviewedBy: profile.displayName,
-            });
+            if (isSupabaseConfigured) {
+                await supabase.from('loans').update({
+                    status: action,
+                    adminNotes: adminNotes || null,
+                    updatedAt: new Date().toISOString(),
+                }).eq('id', loan.id);
+            }
 
             // Send notification to user
             const actionLabel = action === 'approved' ? 'Approved' : action === 'rejected' ? 'Rejected' : 'Under Review';
@@ -121,7 +125,7 @@ export default function AdminPage() {
                         <div>
                             <h2>{selectedLoan.type}</h2>
                             <p className={styles.detailMeta}>
-                                Applied by {selectedLoan.userName || selectedLoan.userEmail} · {selectedLoan.createdAt?.toDate?.()?.toLocaleDateString('en-IN') || 'N/A'}
+                                Applied by {selectedLoan.userName || selectedLoan.userEmail} · {selectedLoan.createdAt ? new Date(selectedLoan.createdAt).toLocaleDateString('en-IN') : 'N/A'}
                             </p>
                         </div>
                         <span className={`badge badge-${selectedLoan.status === 'approved' ? 'success' : selectedLoan.status === 'rejected' ? 'danger' : selectedLoan.status === 'under_review' ? 'info' : 'warning'}`}>
@@ -318,7 +322,7 @@ export default function AdminPage() {
                                             {loan.status.replace('_', ' ')}
                                         </span>
                                     </td>
-                                    <td>{loan.createdAt?.toDate?.()?.toLocaleDateString('en-IN') || 'N/A'}</td>
+                                    <td>{loan.createdAt ? new Date(loan.createdAt).toLocaleDateString('en-IN') : 'N/A'}</td>
                                     <td>
                                         <button
                                             className="btn btn-secondary btn-sm"

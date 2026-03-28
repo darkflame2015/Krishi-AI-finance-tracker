@@ -1,19 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import {
-    collection,
-    query,
-    where,
-    orderBy,
-    onSnapshot,
-    doc,
-    updateDoc,
-    addDoc,
-    serverTimestamp,
-    Timestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 
 export interface Notification {
@@ -23,7 +11,7 @@ export interface Notification {
     message: string;
     type: 'info' | 'success' | 'warning' | 'error';
     read: boolean;
-    createdAt: Timestamp;
+    createdAt: string;
 }
 
 interface NotificationContextType {
@@ -41,37 +29,53 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     useEffect(() => {
-        if (!user || !db) {
+        if (!user || !isSupabaseConfigured) {
             setNotifications([]);
             return;
         }
 
-        const q = query(
-            collection(db, 'notifications'),
-            where('userId', '==', user.uid),
-            orderBy('createdAt', 'desc')
-        );
+        const fetchNotifications = async () => {
+            const { data } = await supabase
+                .from('notifications')
+                .select('*')
+                .eq('userId', user.uid)
+                .order('createdAt', { ascending: false });
 
-        const unsub = onSnapshot(q, (snap) => {
-            const items: Notification[] = snap.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-            })) as Notification[];
-            setNotifications(items);
-        });
+            if (data) setNotifications(data as Notification[]);
+        };
 
-        return () => unsub();
+        fetchNotifications();
+
+        const channel = supabase.channel(`public:notifications:userId=eq.${user.uid}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'notifications', filter: `userId=eq.${user.uid}` },
+                (payload) => {
+                    fetchNotifications();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user]);
 
     const unreadCount = notifications.filter((n) => !n.read).length;
 
     const markAsRead = async (id: string) => {
-        await updateDoc(doc(db, 'notifications', id), { read: true });
+        if (!isSupabaseConfigured) return;
+        await supabase.from('notifications').update({ read: true }).eq('id', id);
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     };
 
     const markAllAsRead = useCallback(async () => {
+        if (!isSupabaseConfigured) return;
         const unread = notifications.filter((n) => !n.read);
-        await Promise.all(unread.map((n) => updateDoc(doc(db, 'notifications', n.id), { read: true })));
+        if (unread.length === 0) return;
+
+        await supabase.from('notifications').update({ read: true }).in('id', unread.map(n => n.id));
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     }, [notifications]);
 
     const sendNotification = async (
@@ -80,13 +84,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         message: string,
         type: Notification['type'] = 'info'
     ) => {
-        await addDoc(collection(db, 'notifications'), {
+        if (!isSupabaseConfigured) return;
+        await supabase.from('notifications').insert({
             userId,
             title,
             message,
             type,
             read: false,
-            createdAt: serverTimestamp(),
         });
     };
 

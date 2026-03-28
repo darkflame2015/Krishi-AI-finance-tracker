@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { HiOutlineUserGroup, HiOutlineArrowLeft } from 'react-icons/hi';
 import styles from './groups.module.css';
 
@@ -25,26 +24,38 @@ export default function GroupsPage() {
     const [selected, setSelected] = useState<FPOGroup | null>(null);
 
     useEffect(() => {
-        const unsub = onSnapshot(collection(db, 'groups'), (snap) => {
-            const items: FPOGroup[] = snap.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-            })) as FPOGroup[];
-            setGroups(items);
+        if (!isSupabaseConfigured) {
             setLoading(false);
-        }, (error) => {
-            console.error("Firestore error in groups:", error);
+            return;
+        }
+
+        const fetchGroups = async () => {
+            const { data, error } = await supabase.from('groups').select('*');
+            if (error) {
+                console.error("Supabase error returning groups:", error);
+            } else if (data) {
+                setGroups(data as FPOGroup[]);
+            }
             setLoading(false);
-        });
-        return () => unsub();
+        };
+        fetchGroups();
+
+        const channel = supabase.channel('public:groups')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
+                fetchGroups();
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, []);
 
     const handleSelect = async (group: FPOGroup) => {
+        if (!isSupabaseConfigured) return;
+
         // Fetch latest data
-        const docRef = doc(db, 'groups', group.id);
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-            setSelected({ id: snap.id, ...snap.data() } as FPOGroup);
+        const { data } = await supabase.from('groups').select('*').eq('id', group.id).single();
+        if (data) {
+            setSelected(data as FPOGroup);
         } else {
             setSelected(group);
         }

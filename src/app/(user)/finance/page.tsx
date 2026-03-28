@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useNotifications } from '@/context/NotificationContext';
 import {
     HiOutlineCurrencyRupee,
@@ -51,19 +50,17 @@ export default function FinancePage() {
         if (!profile) return;
         setSubmitting(true);
         try {
-            await addDoc(collection(db, 'loans'), {
-                userId: profile.uid,
-                userName: profile.displayName,
-                userEmail: profile.email,
-                type: loanType,
-                amount: parseFloat(loanAmount),
-                purpose: loanPurpose,
-                status: 'pending',
-                documents: [],
-                amountPaid: 0,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
+            if (isSupabaseConfigured) {
+                await supabase.from('loans').insert({
+                    userId: profile.uid,
+                    type: loanType,
+                    amount: parseFloat(loanAmount),
+                    purpose: loanPurpose,
+                    status: 'pending',
+                    documents: [],
+                    amountPaid: 0,
+                });
+            }
             // Notify all admins (we'll create a notification for the user's own record)
             await sendNotification(
                 profile.uid,
@@ -87,21 +84,18 @@ export default function FinancePage() {
         setSubmitting(true);
         try {
             const kccAmount = parseFloat(kccLandSize) * 50000; // Estimated KCC limit
-            await addDoc(collection(db, 'loans'), {
-                userId: profile.uid,
-                userName: profile.displayName,
-                userEmail: profile.email,
-                type: 'Kisan Credit Card',
-                amount: kccAmount,
-                purpose: `KCC for ${kccCropType} cultivation on ${kccLandSize} acres`,
-                status: 'pending',
-                documents: [],
-                amountPaid: 0,
-                landSize: parseFloat(kccLandSize),
-                cropType: kccCropType,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
+
+            if (isSupabaseConfigured) {
+                await supabase.from('loans').insert({
+                    userId: profile.uid,
+                    type: 'Kisan Credit Card',
+                    amount: kccAmount,
+                    purpose: `KCC for ${kccCropType} cultivation on ${kccLandSize} acres`,
+                    status: 'pending',
+                    documents: [],
+                    amountPaid: 0,
+                });
+            }
             await sendNotification(
                 profile.uid,
                 'KCC Application Submitted',

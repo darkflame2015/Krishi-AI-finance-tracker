@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
     HiOutlineClock,
     HiOutlineCheckCircle,
@@ -23,8 +19,8 @@ interface Loan {
     status: string;
     purpose: string;
     documents: string[];
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
+    createdAt: string;
+    updatedAt: string;
     amountPaid: number;
     adminNotes?: string;
 }
@@ -36,39 +32,61 @@ export default function LoansPage() {
     const [uploading, setUploading] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!profile) return;
-
-        const q = query(
-            collection(db, 'loans'),
-            where('userId', '==', profile.uid),
-            orderBy('createdAt', 'desc')
-        );
-
-        const unsub = onSnapshot(q, (snap) => {
-            const items: Loan[] = snap.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-            })) as Loan[];
-            setLoans(items);
+        if (!profile || !isSupabaseConfigured) {
             setLoading(false);
-        }, (error) => {
-            console.error("Firestore error in loans:", error);
-            setLoading(false);
-        });
+            return;
+        }
 
-        return () => unsub();
+        const fetchLoans = async () => {
+            const { data, error } = await supabase
+                .from('loans')
+                .select('*')
+                .eq('userId', profile.uid)
+                .order('createdAt', { ascending: false });
+
+            if (error) {
+                console.error("Supabase error returning loans:", error);
+            } else if (data) {
+                setLoans(data as Loan[]);
+            }
+            setLoading(false);
+        };
+
+        fetchLoans();
+
+        const channel = supabase.channel(`public:loans:userId=eq.${profile.uid}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'loans', filter: `userId=eq.${profile.uid}` },
+                () => { fetchLoans(); }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, [profile]);
 
     const handleUpload = async (loanId: string, file: File) => {
-        if (!profile) return;
+        if (!profile || !isSupabaseConfigured) return;
         setUploading(loanId);
         try {
-            const storageRef = ref(storage, `documents/${profile.uid}/${loanId}/${file.name}`);
-            await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(storageRef);
-            await updateDoc(doc(db, 'loans', loanId), {
-                documents: arrayUnion(url),
-            });
+            const fileExt = file.name.split('.').pop();
+            const filePath = `${profile.uid}/${loanId}/${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, file);
+            if (uploadError) throw uploadError;
+
+            const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
+            const url = urlData.publicUrl;
+
+            // Fetch current documents array
+            const { data: currentLoan } = await supabase.from('loans').select('documents').eq('id', loanId).single();
+            const currentDocs = currentLoan?.documents || [];
+
+            // Append new document
+            await supabase.from('loans').update({
+                documents: [...currentDocs, url],
+            }).eq('id', loanId);
+
         } catch (err) {
             console.error('Upload failed:', err);
         } finally {
@@ -209,7 +227,7 @@ export default function LoansPage() {
                                 </div>
 
                                 <div className={styles.cardFooter}>
-                                    <span>Applied: {loan.createdAt?.toDate?.()?.toLocaleDateString('en-IN') || 'N/A'}</span>
+                                    <span>Applied: {loan.createdAt ? new Date(loan.createdAt).toLocaleDateString('en-IN') : 'N/A'}</span>
                                 </div>
                             </div>
                         );

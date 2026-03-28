@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, BarChart, Bar,
@@ -39,46 +38,50 @@ export default function AnalyticsPage() {
     const [totalPaid, setTotalPaid] = useState(0);
 
     useEffect(() => {
-        if (!profile) return;
+        if (!profile || !isSupabaseConfigured) {
+            setLoading(false);
+            return;
+        }
 
         const fetchData = async () => {
             try {
                 // Fetch loans
-                const loansQ = query(
-                    collection(db, 'loans'),
-                    where('userId', '==', profile.uid)
-                );
-                const loansSnap = await getDocs(loansQ);
+                const { data: loansData } = await supabase
+                    .from('loans')
+                    .select('*')
+                    .eq('userId', profile.uid);
+
                 let loanTotal = 0;
                 let paidTotal = 0;
 
-                loansSnap.docs.forEach((d) => {
-                    const data = d.data();
-                    if (data.status === 'approved') {
-                        loanTotal += data.amount || 0;
-                        paidTotal += data.amountPaid || 0;
-                    }
-                });
+                if (loansData) {
+                    loansData.forEach((d) => {
+                        if (d.status === 'approved') {
+                            loanTotal += d.amount || 0;
+                            paidTotal += d.amountPaid || 0;
+                        }
+                    });
+                }
 
                 setTotalLoan(loanTotal);
                 setTotalPaid(paidTotal);
 
                 // Fetch payments
-                const paymentsQ = query(
-                    collection(db, 'payments'),
-                    where('userId', '==', profile.uid),
-                    orderBy('date', 'asc')
-                );
-                const paymentsSnap = await getDocs(paymentsQ);
-                const paymentList: PaymentEntry[] = paymentsSnap.docs.map((d) => {
-                    const data = d.data();
-                    const date = data.date?.toDate?.() || new Date();
+                const { data: paymentsData } = await supabase
+                    .from('payments')
+                    .select('*')
+                    .eq('userId', profile.uid)
+                    .order('date', { ascending: true });
+
+                const paymentList: PaymentEntry[] = (paymentsData || []).map((d) => {
+                    const date = d.date ? new Date(d.date) : new Date();
                     return {
-                        amount: data.amount,
+                        amount: d.amount,
                         date: date.toLocaleDateString('en-IN'),
                         month: date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
                     };
                 });
+
                 setPayments(paymentList);
 
                 // Call analytics API

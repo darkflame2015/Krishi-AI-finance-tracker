@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
     HiOutlineCurrencyRupee,
     HiOutlineDocumentText,
@@ -47,31 +46,33 @@ export default function DashboardPage() {
 
         const fetchLoans = async () => {
             try {
-                const q = query(
-                    collection(db, 'loans'),
-                    where('userId', '==', profile.uid),
-                    orderBy('createdAt', 'desc'),
-                    limit(5)
-                );
-                const snap = await getDocs(q);
+                if (!isSupabaseConfigured) return;
+                const { data, error } = await supabase
+                    .from('loans')
+                    .select('*')
+                    .eq('userId', profile.uid)
+                    .order('createdAt', { ascending: false })
+                    .limit(5);
+
                 const items: LoanSummary[] = [];
                 let balance = 0;
                 let paid = 0;
 
-                snap.docs.forEach((d) => {
-                    const data = d.data();
-                    items.push({
-                        id: d.id,
-                        type: data.type,
-                        amount: data.amount,
-                        status: data.status,
-                        createdAt: data.createdAt?.toDate?.()?.toLocaleDateString?.() || '',
+                if (data) {
+                    data.forEach((d) => {
+                        items.push({
+                            id: d.id,
+                            type: d.type,
+                            amount: d.amount,
+                            status: d.status,
+                            createdAt: d.createdAt ? new Date(d.createdAt).toLocaleDateString('en-IN') : '',
+                        });
+                        if (d.status === 'approved') {
+                            balance += d.amount - (d.amountPaid || 0);
+                            paid += d.amountPaid || 0;
+                        }
                     });
-                    if (data.status === 'approved') {
-                        balance += data.amount - (data.amountPaid || 0);
-                        paid += data.amountPaid || 0;
-                    }
-                });
+                }
 
                 setLoans(items);
                 setTotalBalance(balance);

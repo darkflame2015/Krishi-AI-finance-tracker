@@ -2,10 +2,8 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { updateProfile } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import styles from './settings.module.css';
 
 export default function SettingsPage() {
@@ -23,11 +21,13 @@ export default function SettingsPage() {
             // Update Firebase Auth profile
             await updateProfile(user, { displayName: name });
 
-            // Update Firestore profile
-            await updateDoc(doc(db, 'users', user.uid), {
-                displayName: name,
-                region: region,
-            });
+            // Update Supabase profile
+            if (isSupabaseConfigured) {
+                await supabase.from('users').update({
+                    displayName: name,
+                    region: region,
+                }).eq('uid', user.uid);
+            }
 
             setSuccess('Profile updated successfully!');
             setTimeout(() => setSuccess(''), 3000);

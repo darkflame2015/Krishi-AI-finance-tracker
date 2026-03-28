@@ -10,8 +10,8 @@ import {
     signOut,
     updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, googleProvider, db, firebaseConfigured } from '@/lib/firebase';
+import { auth, googleProvider, firebaseConfigured } from '@/lib/firebase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export type UserRole = 'user' | 'admin';
 
@@ -42,13 +42,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     const fetchProfile = async (u: User): Promise<UserProfile | null> => {
-        if (!db) return null;
+        if (!isSupabaseConfigured) return null;
         try {
-            const docRef = doc(db, 'users', u.uid);
-            const snap = await getDoc(docRef);
-            if (snap.exists()) {
-                return snap.data() as UserProfile;
+            const { data: existing, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('uid', u.uid)
+                .single();
+
+            if (existing) {
+                return existing as UserProfile;
             }
+            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+                console.error('Supabase fetch error:', error);
+            }
+
             const newProfile: UserProfile = {
                 uid: u.uid,
                 email: u.email,
@@ -57,7 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 role: 'user',
                 region: '',
             };
-            await setDoc(docRef, { ...newProfile, createdAt: serverTimestamp() });
+
+            const { error: insertError } = await supabase.from('users').insert(newProfile);
+            if (insertError) console.error('Error creating profile:', insertError);
+
             return newProfile;
         } catch {
             console.error('Error fetching profile');
@@ -89,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const registerWithEmail = async (email: string, password: string, name: string) => {
-        if (!auth || !db) throw new Error('Firebase not configured');
+        if (!auth) throw new Error('Firebase not configured');
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name });
         const newProfile: UserProfile = {
@@ -100,7 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: 'user',
             region: '',
         };
-        await setDoc(doc(db, 'users', cred.user.uid), { ...newProfile, createdAt: serverTimestamp() });
+
+        if (isSupabaseConfigured) {
+            await supabase.from('users').insert(newProfile);
+        }
         setProfile(newProfile);
     };
 
