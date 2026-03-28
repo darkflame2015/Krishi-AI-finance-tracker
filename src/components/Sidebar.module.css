@@ -1,0 +1,344 @@
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    background: var(--bg-sidebar);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    overflow-y: auto;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brandIcon {
+    font-size: 1.6rem;
+    color: #4a9e58;
+}
+
+.brandText {
+    font-family: 'Eczar', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #e8f0e4;
+}
+
+.adminBadge {
+    margin-left: auto;
+    background: rgba(196, 138, 26, 0.2);
+    color: var(--accent-amber-light);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.nav {
+    flex: 1;
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.navItem {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    color: var(--text-light);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all var(--transition-fast);
+}
+
+.navItem:hover {
+    background: var(--bg-sidebar-hover);
+    color: var(--text-on-dark);
+}
+
+.navItem.active {
+    background: var(--bg-sidebar-active);
+    color: #ffffff;
+}
+
+.navIcon {
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+}
+
+.navLabel {
+    white-space: nowrap;
+}
+
+.bottom {
+    padding: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.notifBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-light);
+    font-size: 1.2rem;
+    position: relative;
+    cursor: pointer;
+    border: none;
+    width: 100%;
+    transition: all var(--transition-fast);
+}
+
+.notifBtn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+}
+
+.notifCount {
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 20px);
+    background: var(--accent-red);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 10px;
+    min-width: 16px;
+    text-align: center;
+}
+
+.user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+}
+
+.avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.userInfo {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.userName {
+    color: var(--text-on-dark);
+    font-weight: 600;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.userRole {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: capitalize;
+}
+
+.logoutBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-light);
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: none;
+    transition: all var(--transition-fast);
+}
+
+.logoutBtn:hover {
+    background: rgba(196, 74, 74, 0.15);
+    color: var(--accent-red-light);
+}
+
+/* Notification Panel */
+.notifOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 200;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.notifPanel {
+    position: fixed;
+    left: var(--sidebar-width);
+    top: 0;
+    bottom: 0;
+    width: 360px;
+    background: var(--bg-card);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    animation: slideIn 0.2s ease;
+    z-index: 201;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.notifHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.notifHeader h3 {
+    font-family: 'Eczar', serif;
+    font-size: 1.1rem;
+}
+
+.markAllBtn {
+    background: none;
+    border: none;
+    color: var(--accent-green);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.notifList {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.noNotifs {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.notifItem {
+    display: flex;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-light);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.notifItem:hover {
+    background: var(--bg-secondary);
+}
+
+.notifItem.unread {
+    background: #f0f8f0;
+}
+
+.notifDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 6px;
+    background: var(--accent-blue);
+}
+
+.notifDot[data-type="success"] {
+    background: var(--accent-green);
+}
+
+.notifDot[data-type="warning"] {
+    background: var(--accent-amber);
+}
+
+.notifDot[data-type="error"] {
+    background: var(--accent-red);
+}
+
+.notifContent {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+}
+
+.notifTitle {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.notifMsg {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.notifTime {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+    .sidebar {
+        display: none;
+    }
+
+    .notifPanel {
+        left: 0;
+        width: 100%;
+    }
+}

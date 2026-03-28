@@ -1,0 +1,135 @@
+.page {
+    max-width: 900px;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: var(--shadow-sm);
+}
+
+.cardHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cardTitle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cardTitle h3 {
+    font-size: 1.1rem;
+}
+
+.amount {
+    font-family: 'Eczar', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.purpose {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.progressSteps {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.step {
+    color: var(--text-muted);
+}
+
+.stepActive {
+    color: var(--accent-green);
+}
+
+.notes {
+    background: var(--bg-secondary);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.83rem;
+    color: var(--text-secondary);
+}
+
+.repayment {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.docs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.docsLabel {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: 4px;
+}
+
+.docLink {
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    color: var(--accent-blue);
+    font-weight: 600;
+}
+
+.uploadBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-green);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.uploadBtn:hover {
+    background: var(--accent-green-dark);
+}
+
+.cardFooter {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+}
