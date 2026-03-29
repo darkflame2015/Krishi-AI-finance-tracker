@@ -143,3 +143,83 @@ export async function getLoanStats(userId?: string): Promise<{
 export function generateLoanId(): string {
     return `loan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
+
+export interface Payment {
+    id: string;
+    loanId: string;
+    userId: string;
+    amount: number;
+    type: 'online' | 'offline';
+    proofUrl?: string; // For offline payments
+    status: 'pending' | 'approved' | 'rejected';
+    createdAt: string;
+}
+
+const ALL_PAYMENTS_SET = 'payments:all';
+const PAYMENTS_BY_LOAN_PREFIX = 'payments:loan:';
+const PAYMENTS_BY_USER_PREFIX = 'payments:user:';
+
+export async function addPayment(payment: Payment): Promise<string> {
+    if (!redis) throw new Error('Redis not configured');
+    await redis.set(`payment:${payment.id}`, payment);
+    await redis.sadd(ALL_PAYMENTS_SET, payment.id);
+    await redis.sadd(`${PAYMENTS_BY_LOAN_PREFIX}${payment.loanId}`, payment.id);
+    await redis.sadd(`${PAYMENTS_BY_USER_PREFIX}${payment.userId}`, payment.id);
+    return payment.id;
+}
+
+export async function updatePayment(id: string, updates: Partial<Payment>): Promise<void> {
+    if (!redis) return;
+    const existing = await redis.get<Payment>(`payment:${id}`);
+    if (!existing) return;
+    const updated: Payment = { ...existing, ...updates };
+    await redis.set(`payment:${id}`, updated);
+}
+
+export async function getPaymentsByLoan(loanId: string): Promise<Payment[]> {
+    if (!redis) return [];
+    try {
+        const paymentIds = await redis.smembers(`${PAYMENTS_BY_LOAN_PREFIX}${loanId}`) as string[];
+        if (!paymentIds || paymentIds.length === 0) return [];
+        const payments: Payment[] = [];
+        for (const id of paymentIds) {
+            const p = await redis.get<Payment>(`payment:${id}`);
+            if (p) payments.push(p);
+        }
+        return payments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } catch {
+        return [];
+    }
+}
+
+export async function getPaymentsByUser(userId: string): Promise<Payment[]> {
+    if (!redis) return [];
+    try {
+        const paymentIds = await redis.smembers(`${PAYMENTS_BY_USER_PREFIX}${userId}`) as string[];
+        if (!paymentIds || paymentIds.length === 0) return [];
+        const payments: Payment[] = [];
+        for (const id of paymentIds) {
+            const p = await redis.get<Payment>(`payment:${id}`);
+            if (p) payments.push(p);
+        }
+        return payments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } catch {
+        return [];
+    }
+}
+
+export async function getAllPendingPayments(): Promise<Payment[]> {
+    if (!redis) return [];
+    try {
+        const paymentIds = await redis.smembers(ALL_PAYMENTS_SET) as string[];
+        if (!paymentIds || paymentIds.length === 0) return [];
+        const pending: Payment[] = [];
+        for (const id of paymentIds) {
+            const p = await redis.get<Payment>(`payment:${id}`);
+            if (p && p.status === 'pending' && p.type === 'offline') pending.push(p);
+        }
+        return pending.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    } catch {
+        return [];
+    }
+}

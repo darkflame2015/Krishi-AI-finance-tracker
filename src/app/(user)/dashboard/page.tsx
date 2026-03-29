@@ -11,6 +11,7 @@ import {
     HiOutlineCheckCircle,
     HiOutlineExclamationCircle,
 } from 'react-icons/hi';
+import { FcSimCardChip } from 'react-icons/fc';
 import styles from './dashboard.module.css';
 
 interface LoanSummary {
@@ -37,8 +38,20 @@ export default function DashboardPage() {
     const [news, setNews] = useState<NewsArticle[]>([]);
     const [totalBalance, setTotalBalance] = useState(0);
     const [totalPaid, setTotalPaid] = useState(0);
+    const [kccLoan, setKccLoan] = useState<LoanSummary | null>(null);
     const [loadingLoans, setLoadingLoans] = useState(true);
     const [loadingNews, setLoadingNews] = useState(true);
+
+    const generateCCN = (loanId: string) => {
+        let hash = 0;
+        for (let i = 0; i < loanId.length; i++) {
+            hash = loanId.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const num1 = Math.abs(Math.sin(hash++) * 10000).toString().replace('.', '').padEnd(4, '0').slice(0,4);
+        const num2 = Math.abs(Math.cos(hash++) * 10000).toString().replace('.', '').padEnd(4, '0').slice(0,4);
+        const num3 = Math.abs(Math.sin(hash) * 10000).toString().replace('.', '').padEnd(4, '0').slice(0,4);
+        return `6012 ${num1} ${num2} ${num3}`;
+    };
 
     useEffect(() => {
         const fetchLoans = async () => {
@@ -62,6 +75,9 @@ export default function DashboardPage() {
                         if (d.status === 'approved') {
                             balance += d.amount - (d.amountPaid || 0);
                             paid += d.amountPaid || 0;
+                            if (d.type === 'Kisan Credit Card') {
+                                setKccLoan({ ...d, amountPaid: d.amountPaid || 0 } as any);
+                            }
                         }
                     });
 
@@ -141,6 +157,28 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            {kccLoan && (
+                <div className={styles.kccWidget}>
+                    <div className={styles.creditCard}>
+                        <div className={styles.ccHeader}>
+                            <div className={styles.ccBrand}>KCC</div>
+                            <FcSimCardChip size={32} />
+                        </div>
+                        <div className={styles.ccNumber}>{generateCCN(kccLoan.id)}</div>
+                        <div className={styles.ccFooter}>
+                            <div>
+                                <div className={styles.ccLabel}>Card Holder</div>
+                                <div className={styles.ccValue}>{profile?.displayName?.split(' ')[0] || 'Farmer'}</div>
+                            </div>
+                            <div>
+                                <div className={styles.ccLabel}>Credit Limit</div>
+                                <div className={styles.ccValue}>₹{kccLoan.amount.toLocaleString('en-IN')}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className={styles.grid}>
                 <div className={styles.section}>
                     <div className={styles.sectionHeader}>
@@ -210,8 +248,8 @@ export default function DashboardPage() {
                                 <span>Outstanding</span>
                                 <span className={styles.payValue}>₹{totalBalance.toLocaleString('en-IN')}</span>
                             </div>
-                            <a href="/finance" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-                                Make a Payment
+                            <a href="/loans" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
+                                Go to Loans to Pay
                             </a>
                         </div>
                     ) : (

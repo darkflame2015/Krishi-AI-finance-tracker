@@ -10,6 +10,7 @@ import {
     HiOutlineEye,
     HiOutlineDocumentText,
     HiOutlineArrowLeft,
+    HiOutlineCurrencyRupee
 } from 'react-icons/hi';
 import styles from './admin.module.css';
 
@@ -35,29 +36,34 @@ export default function AdminPage() {
     const { profile } = useAuth();
     const { sendNotification } = useNotifications();
     const [loans, setLoans] = useState<Loan[]>([]);
+    const [payments, setPayments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
     const [adminNotes, setAdminNotes] = useState('');
     const [processing, setProcessing] = useState(false);
     const [filter, setFilter] = useState<string>('all');
+    const [activeTab, setActiveTab] = useState<'loans' | 'payments'>('loans');
 
-    const fetchLoans = useCallback(async () => {
+    const fetchLoansAndPayments = useCallback(async () => {
         try {
-            const res = await fetch('/api/loans');
-            if (res.ok) {
-                const data = await res.json();
-                setLoans(data);
-            }
+            setLoading(true);
+            const [loansRes, paymentsRes] = await Promise.all([
+                fetch('/api/loans'),
+                fetch('/api/payments?type=pending')
+            ]);
+            
+            if (loansRes.ok) setLoans(await loansRes.json());
+            if (paymentsRes.ok) setPayments(await paymentsRes.json());
         } catch (err) {
-            console.error("Error fetching loans:", err);
+            console.error("Error fetching data:", err);
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchLoans();
-    }, [fetchLoans]);
+        fetchLoansAndPayments();
+    }, [fetchLoansAndPayments]);
 
     const handleAction = async (loan: Loan, action: 'approved' | 'rejected' | 'under_review') => {
         if (!profile) return;
@@ -85,9 +91,29 @@ export default function AdminPage() {
 
             setSelectedLoan(null);
             setAdminNotes('');
-            fetchLoans();
+            fetchLoansAndPayments();
         } catch (err) {
             console.error('Action failed:', err);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handlePaymentAction = async (paymentId: string, action: 'approved' | 'rejected') => {
+        setProcessing(true);
+        try {
+            const res = await fetch(`/api/payments/${paymentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: action }),
+            });
+            if (res.ok) {
+                fetchLoansAndPayments();
+            } else {
+                alert('Failed to process payment');
+            }
+        } catch (err) {
+            console.error(err);
         } finally {
             setProcessing(false);
         }
@@ -233,9 +259,20 @@ export default function AdminPage() {
     return (
         <div className={styles.page}>
             <div className="page-header">
-                <h1>Loan Approval Dashboard</h1>
-                <p>Review and process loan applications</p>
+                <h1>Admin Dashboard</h1>
+                <p>Review loan applications and payment receipts</p>
+                <div className={styles.adminTabs}>
+                    <button className={`${styles.adminTab} ${activeTab === 'loans' ? styles.activeTab : ''}`} onClick={() => setActiveTab('loans')}>
+                        Loan Applications
+                    </button>
+                    <button className={`${styles.adminTab} ${activeTab === 'payments' ? styles.activeTab : ''}`} onClick={() => setActiveTab('payments')}>
+                        Offline Payments {payments.length > 0 && <span className={styles.notifBadge}>{payments.length}</span>}
+                    </button>
+                </div>
             </div>
+
+            {activeTab === 'loans' ? (
+                <>
 
             <div className={styles.statsGrid}>
                 <div className="stat-card">
@@ -322,6 +359,67 @@ export default function AdminPage() {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+            </>
+            ) : (
+                <div className="table-container">
+                    {payments.length === 0 ? (
+                        <div className="empty-state">
+                            <HiOutlineCheckCircle size={48} style={{ color: 'var(--accent-green)' }} />
+                            <p>No pending offline payments to verify</p>
+                        </div>
+                    ) : (
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>User ID</th>
+                                    <th>Loan ID</th>
+                                    <th>Amount</th>
+                                    <th>Proof</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {payments.map((p) => (
+                                    <tr key={p.id}>
+                                        <td>{new Date(p.createdAt).toLocaleDateString('en-IN')}</td>
+                                        <td style={{ fontSize: '0.8rem' }}>{p.userId}</td>
+                                        <td style={{ fontSize: '0.8rem' }}>{p.loanId}</td>
+                                        <td style={{ fontFamily: "'Eczar', serif", fontWeight: 700 }}>
+                                            ₹{p.amount.toLocaleString('en-IN')}
+                                        </td>
+                                        <td>
+                                            <a href={p.proofUrl} target="_blank" rel="noopener noreferrer" className={styles.docLink}>
+                                                <HiOutlineEye /> View Receipt
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    className="btn btn-primary btn-sm"
+                                                    disabled={processing}
+                                                    onClick={() => handlePaymentAction(p.id, 'approved')}
+                                                    style={{ padding: '4px 8px' }}
+                                                >
+                                                    <HiOutlineCheckCircle size={16} />
+                                                </button>
+                                                <button
+                                                    className="btn btn-danger btn-sm"
+                                                    disabled={processing}
+                                                    onClick={() => handlePaymentAction(p.id, 'rejected')}
+                                                    style={{ padding: '4px 8px' }}
+                                                >
+                                                    <HiOutlineXCircle size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             )}
         </div>

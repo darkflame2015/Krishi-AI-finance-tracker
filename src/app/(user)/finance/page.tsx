@@ -11,7 +11,7 @@ import {
 } from 'react-icons/hi';
 import styles from './finance.module.css';
 
-type TabType = 'overview' | 'calculator' | 'apply-loan' | 'apply-kcc';
+type TabType = 'overview' | 'calculator' | 'apply-loan' | 'apply-kcc' | 'risk-analysis';
 
 export default function FinancePage() {
     const { profile } = useAuth();
@@ -39,6 +39,53 @@ export default function FinancePage() {
             : loanCalcAmount / tenure;
     const totalPayment = emi * tenure;
     const totalInterest = totalPayment - loanCalcAmount;
+
+    // Risk Analysis States
+    const [riskIncome, setRiskIncome] = useState(30000);
+    const [riskLoanAmt, setRiskLoanAmt] = useState(100000);
+    const [riskCreditScore, setRiskCreditScore] = useState(650);
+    const [riskHistory, setRiskHistory] = useState('good'); // 'excellent', 'good', 'fair', 'poor'
+    const [riskResult, setRiskResult] = useState<any>(null);
+
+    const calculateRisk = () => {
+        // Deterministic formula-based risk analysis (Client-side, Non-API)
+        // 1. Debt-to-Income (DTI)
+        const estimatedEmi = (riskLoanAmt * 0.07) / 12; // Simplified 7% flat for estimation
+        const dti = estimatedEmi / Math.max(riskIncome, 1);
+        const dtiScore = dti < 0.3 ? 0.9 : dti < 0.5 ? 0.6 : dti < 0.7 ? 0.3 : 0.1;
+
+        // 2. Credit Score Factor
+        const creditFactor = Math.max(0, Math.min(1, (riskCreditScore - 300) / 550));
+
+        // 3. Payment History
+        const historyMap: any = { 'excellent': 0.95, 'good': 0.8, 'fair': 0.5, 'poor': 0.2 };
+        const historyFactor = historyMap[riskHistory];
+
+        // Weighted Risk Score
+        const weightedScore = (dtiScore * 0.4) + (creditFactor * 0.3) + (historyFactor * 0.3);
+        const riskScore = Math.max(0, Math.min(100, Math.round((1 - weightedScore) * 100)));
+
+        let riskLevel = 'low';
+        if (riskScore > 75) riskLevel = 'critical';
+        else if (riskScore > 50) riskLevel = 'high';
+        else if (riskScore > 25) riskLevel = 'medium';
+
+        // Logistic Regression Approximation for Approval Probability
+        const logit = -2 + (3 * creditFactor) + (2 * historyFactor) - (2 * dti);
+        const sigmoid = 1 / (1 + Math.exp(-logit));
+        const approvalProb = Math.round(sigmoid * 100);
+
+        setRiskResult({
+            score: riskScore,
+            level: riskLevel,
+            approvalProbability: approvalProb,
+            factors: [
+                { name: 'Debt-to-Income', value: dtiScore, impact: dtiScore > 0.5 ? 'Positive' : 'Negative' },
+                { name: 'Credit Score', value: creditFactor, impact: creditFactor > 0.5 ? 'Positive' : 'Negative' },
+                { name: 'Repayment History', value: historyFactor, impact: historyFactor > 0.5 ? 'Positive' : 'Negative' }
+            ]
+        });
+    };
 
     const handleLoanApplication = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -139,6 +186,12 @@ export default function FinancePage() {
                 </button>
                 <button className={`tab ${activeTab === 'apply-kcc' ? 'active' : ''}`} onClick={() => { setActiveTab('apply-kcc'); setSuccess(''); }}>
                     <HiOutlineCreditCard /> Kisan Credit Card
+                </button>
+                <button className={`tab ${activeTab === 'risk-analysis' ? 'active' : ''}`} onClick={() => { setActiveTab('risk-analysis'); setSuccess(''); }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        AI Risk Analysis
+                    </div>
                 </button>
             </div>
 
@@ -350,6 +403,74 @@ export default function FinancePage() {
                             {submitting ? 'Submitting...' : 'Submit KCC Application'}
                         </button>
                     </form>
+                </div>
+            )}
+
+            {activeTab === 'risk-analysis' && (
+                <div className={styles.riskContainer}>
+                    <div className="card" style={{ flex: 1, minWidth: '300px' }}>
+                        <h3 style={{ marginBottom: 20 }}>Loan Prediction AI</h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 20 }}>
+                            Use our deterministic AI model to analyze your approval probability before applying.
+                        </p>
+                        <div className="form-group">
+                            <label>Monthly Income (₹)</label>
+                            <input type="number" className="form-input" value={riskIncome} onChange={e => setRiskIncome(Number(e.target.value))} />
+                        </div>
+                        <div className="form-group">
+                            <label>Requested Loan Amount (₹)</label>
+                            <input type="number" className="form-input" value={riskLoanAmt} onChange={e => setRiskLoanAmt(Number(e.target.value))} />
+                        </div>
+                        <div className="form-group">
+                            <label>Estimated Credit Score</label>
+                            <input type="range" min="300" max="850" className={styles.slider} value={riskCreditScore} onChange={e => setRiskCreditScore(Number(e.target.value))} />
+                            <div className={styles.sliderValue} style={{ textAlign: 'right' }}>{riskCreditScore}</div>
+                        </div>
+                        <div className="form-group">
+                            <label>Repayment History Quality</label>
+                            <select className="form-input" value={riskHistory} onChange={e => setRiskHistory(e.target.value)}>
+                                <option value="excellent">Excellent (No delays)</option>
+                                <option value="good">Good (1-2 minor delays)</option>
+                                <option value="fair">Fair (Some delays)</option>
+                                <option value="poor">Poor (Defaults or many delays)</option>
+                            </select>
+                        </div>
+                        <button className="btn btn-primary" onClick={calculateRisk} style={{ width: '100%' }}>
+                            Run AI Analysis
+                        </button>
+                    </div>
+
+                    {riskResult && (
+                        <div className={styles.riskResultCard} style={{ flex: 1 }}>
+                            <h3>Analysis Result</h3>
+                            <div className={styles.riskGauge}>
+                                <div className={styles.gaugePercent} style={{ color: riskResult.approvalProbability > 60 ? 'var(--accent-green)' : riskResult.approvalProbability > 30 ? 'var(--accent-amber)' : 'var(--accent-red)' }}>
+                                    {riskResult.approvalProbability}%
+                                </div>
+                                <span>Approval Probability</span>
+                            </div>
+                            
+                            <div style={{ marginTop: 24 }}>
+                                <h4>Risk Score: {riskResult.score}/100</h4>
+                                <span className={`badge badge-${riskResult.level === 'low' ? 'success' : riskResult.level === 'medium' ? 'warning' : 'danger'}`} style={{ display: 'inline-block', marginTop: 8 }}>
+                                    {riskResult.level.toUpperCase()} RISK
+                                </span>
+                            </div>
+
+                            <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <h4>Key Factors</h4>
+                                {riskResult.factors.map((f: any, i: number) => (
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--text-secondary)' }}>{f.name}</span>
+                                        <span style={{ 
+                                            fontWeight: 600, 
+                                            color: f.impact === 'Positive' ? 'var(--accent-green)' : 'var(--accent-red)'
+                                        }}>{f.impact} ({Math.round(f.value * 100)}%)</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
