@@ -103,7 +103,10 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
                         </div>
                     </div>
 
-                    <button className={styles.logoutBtn} onClick={logout}>
+                    <button className={styles.logoutBtn} onClick={async () => {
+                        await logout();
+                        window.location.href = '/login';
+                    }}>
                         <HiOutlineLogout />
                         <span>Sign Out</span>
                     </button>

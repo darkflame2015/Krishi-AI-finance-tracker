@@ -408,7 +408,7 @@ export default function FinancePage() {
 
             {activeTab === 'risk-analysis' && (
                 <div className={styles.riskContainer}>
-                    <div className="card" style={{ flex: 1, minWidth: '300px' }}>
+                    <div className="card" style={{ flex: 1, minWidth: 'min(300px, 100%)' }}>
                         <h3 style={{ marginBottom: 20 }}>Loan Prediction AI</h3>
                         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 20 }}>
                             Use our deterministic AI model to analyze your approval probability before applying.

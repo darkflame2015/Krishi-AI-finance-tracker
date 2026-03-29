@@ -12,8 +12,10 @@ import {
     HiOutlineCog,
     HiOutlineTrendingUp,
     HiOutlineX,
+    HiOutlineLogout,
 } from 'react-icons/hi';
 import { PiPlantFill } from 'react-icons/pi';
+import { useAuth } from '@/context/AuthContext';
 import styles from './MobileMenu.module.css';
 
 interface NavItem {
@@ -41,6 +43,7 @@ interface MobileMenuProps {
 
 export default function MobileMenu({ isOpen, onClose, isAdmin = false }: MobileMenuProps) {
     const pathname = usePathname();
+    const { logout } = useAuth();
     const navItems = isAdmin ? [{ label: 'Loan Approvals', href: '/admin', icon: <HiOutlineHome /> }] : userNavItems;
 
     if (!isOpen) return null;
@@ -72,6 +75,18 @@ export default function MobileMenu({ isOpen, onClose, isAdmin = false }: MobileM
                             <span className={styles.navLabel}>{item.label}</span>
                         </Link>
                     ))}
+                    
+                    <button 
+                        className={styles.logoutBtn} 
+                        onClick={async () => {
+                            await logout();
+                            onClose();
+                            window.location.href = '/login';
+                        }}
+                    >
+                        <HiOutlineLogout className={styles.navIcon} />
+                        <span className={styles.navLabel}>Log Out</span>
+                    </button>
                 </nav>
             </div>
         </>

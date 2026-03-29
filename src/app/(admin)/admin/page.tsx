@@ -43,6 +43,7 @@ export default function AdminPage() {
     const [processing, setProcessing] = useState(false);
     const [filter, setFilter] = useState<string>('all');
     const [activeTab, setActiveTab] = useState<'loans' | 'payments'>('loans');
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
     const fetchLoansAndPayments = useCallback(async () => {
         try {
@@ -116,6 +117,32 @@ export default function AdminPage() {
             console.error(err);
         } finally {
             setProcessing(false);
+        }
+    };
+
+    const handleViewProof = (base64Data: string) => {
+        if (!base64Data) return;
+        if (base64Data.startsWith('data:image')) {
+            setSelectedImage(base64Data);
+        } else {
+            try {
+                const arr = base64Data.split(',');
+                const mimeMatch = arr[0].match(/:(.*?);/);
+                if (!mimeMatch) throw new Error('Invalid Data URL');
+                const mime = mimeMatch[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while(n--){
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                const blob = new Blob([u8arr], {type: mime});
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+            } catch (err) {
+                console.error('Failed to open PDF:', err);
+                alert('Could not preview document format.');
+            }
         }
     };
 
@@ -391,9 +418,13 @@ export default function AdminPage() {
                                             ₹{p.amount.toLocaleString('en-IN')}
                                         </td>
                                         <td>
-                                            <a href={p.proofUrl} target="_blank" rel="noopener noreferrer" className={styles.docLink}>
+                                            <button 
+                                                className={styles.docLink} 
+                                                onClick={() => handleViewProof(p.proofUrl)} 
+                                                style={{ border: 'none', cursor: 'pointer', background: 'none' }}
+                                            >
                                                 <HiOutlineEye /> View Receipt
-                                            </a>
+                                            </button>
                                         </td>
                                         <td>
                                             <div style={{ display: 'flex', gap: '8px' }}>
@@ -420,6 +451,21 @@ export default function AdminPage() {
                             </tbody>
                         </table>
                     )}
+                </div>
+            )}
+
+            {selectedImage && (
+                <div className="modal-overlay" onClick={() => setSelectedImage(null)}>
+                    <div className="modal-content" style={{ maxWidth: '800px', padding: '24px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0 }}>Payment Proof</h3>
+                            <button onClick={() => setSelectedImage(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: 'var(--text-secondary)' }}>
+                                <HiOutlineXCircle />
+                            </button>
+                        </div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={selectedImage} alt="Payment Proof" style={{ width: '100%', height: 'auto', borderRadius: '8px', objectFit: 'contain', maxHeight: '70vh' }} />
+                    </div>
                 </div>
             )}
         </div>
