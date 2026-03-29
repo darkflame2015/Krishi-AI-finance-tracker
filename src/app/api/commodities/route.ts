@@ -23,14 +23,14 @@ export async function GET() {
 
             if (response.ok) {
                 const data = await response.json();
-                const records = (data.records && Array.isArray(data.records)) ? data.records : [];
+                const records = data.records || [];
                 const commodities: CommodityPrice[] = records.map((r: Record<string, string>) => ({
-                    commodity: r.commodity || r.Commodity || 'Unknown',
-                    market: r.market || r.Market || 'Unknown',
-                    state: r.state || r.State || 'Unknown',
-                    minPrice: parseFloat(String(r.min_price || r.Min_x0020_Price || '0').replace(/,/g, '')),
-                    maxPrice: parseFloat(String(r.max_price || r.Max_x0020_Price || '0').replace(/,/g, '')),
-                    modalPrice: parseFloat(String(r.modal_price || r.Modal_x0020_Price || '0').replace(/,/g, '')),
+                    commodity: r.commodity || r.Commodity,
+                    market: r.market || r.Market,
+                    state: r.state || r.State,
+                    minPrice: parseFloat((r.min_price || r.Min_x0020_Price || '0').replace(/,/g, '')),
+                    maxPrice: parseFloat((r.max_price || r.Max_x0020_Price || '0').replace(/,/g, '')),
+                    modalPrice: parseFloat((r.modal_price || r.Modal_x0020_Price || '0').replace(/,/g, '')),
                     date: r.arrival_date || r.Arrival_Date || new Date().toISOString().split('T')[0],
                 }));
                 return NextResponse.json({ commodities, source: 'data.gov.in' });

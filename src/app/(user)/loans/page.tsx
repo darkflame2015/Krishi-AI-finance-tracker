@@ -26,13 +26,12 @@ interface Loan {
 }
 
 export default function LoansPage() {
-    const { profile, loading: authLoading } = useAuth();
+    const { profile } = useAuth();
     const [loans, setLoans] = useState<Loan[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState<string | null>(null);
 
     useEffect(() => {
-        if (authLoading) return; // Wait for Firebase Auth to finish determining user state
         if (!profile || !isSupabaseConfigured) {
             setLoading(false);
             return;
@@ -64,7 +63,7 @@ export default function LoansPage() {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [profile, authLoading]);
+    }, [profile]);
 
     const handleUpload = async (loanId: string, file: File) => {
         if (!profile || !isSupabaseConfigured) return;

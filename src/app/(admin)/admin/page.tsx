@@ -33,7 +33,7 @@ interface Loan {
 }
 
 export default function AdminPage() {
-    const { profile, loading: authLoading } = useAuth();
+    const { profile } = useAuth();
     const { sendNotification } = useNotifications();
     const [loans, setLoans] = useState<Loan[]>([]);
     const [loading, setLoading] = useState(true);
@@ -43,7 +43,6 @@ export default function AdminPage() {
     const [filter, setFilter] = useState<string>('all');
 
     useEffect(() => {
-        if (authLoading) return; // Wait for Auth
         if (!isSupabaseConfigured) {
             setLoading(false);
             return;
@@ -65,7 +64,7 @@ export default function AdminPage() {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [authLoading]);
+    }, []);
 
     const handleAction = async (loan: Loan, action: 'approved' | 'rejected' | 'under_review') => {
         if (!profile) return;
