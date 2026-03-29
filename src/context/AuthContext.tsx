@@ -11,7 +11,6 @@ import {
     updateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider, firebaseConfigured } from '@/lib/firebase';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export type UserRole = 'user' | 'admin';
 
@@ -36,44 +35,51 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const PROFILES_KEY = 'krishi_user_profiles';
+
+function getStoredProfiles(): Record<string, UserProfile> {
+    if (typeof window === 'undefined') return {};
+    try {
+        const stored = localStorage.getItem(PROFILES_KEY);
+        return stored ? JSON.parse(stored) : {};
+    } catch {
+        return {};
+    }
+}
+
+function setStoredProfile(profile: UserProfile): void {
+    if (typeof window === 'undefined') return;
+    try {
+        const profiles = getStoredProfiles();
+        profiles[profile.uid] = profile;
+        localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    } catch (err) {
+        console.error('Failed to save profile:', err);
+    }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchProfile = async (u: User): Promise<UserProfile | null> => {
-        if (!isSupabaseConfigured) return null;
-        try {
-            const { data: existing, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('uid', u.uid)
-                .single();
-
-            if (existing) {
-                return existing as UserProfile;
-            }
-            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-                console.error('Supabase fetch error:', error);
-            }
-
-            const newProfile: UserProfile = {
-                uid: u.uid,
-                email: u.email,
-                displayName: u.displayName,
-                photoURL: u.photoURL,
-                role: 'user',
-                region: '',
-            };
-
-            const { error: insertError } = await supabase.from('users').insert(newProfile);
-            if (insertError) console.error('Error creating profile:', insertError);
-
-            return newProfile;
-        } catch {
-            console.error('Error fetching profile');
-            return null;
+    const fetchProfile = (u: User): UserProfile | null => {
+        const profiles = getStoredProfiles();
+        if (profiles[u.uid]) {
+            return profiles[u.uid];
         }
+        
+        const newProfile: UserProfile = {
+            uid: u.uid,
+            email: u.email,
+            displayName: u.displayName,
+            photoURL: u.photoURL,
+            role: 'user',
+            region: '',
+        };
+        
+        setStoredProfile(newProfile);
+        return newProfile;
     };
 
     useEffect(() => {
@@ -84,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const unsub = onAuthStateChanged(auth, async (u) => {
             setUser(u);
             if (u) {
-                const p = await fetchProfile(u);
+                const p = fetchProfile(u);
                 setProfile(p);
             } else {
                 setProfile(null);
@@ -103,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!auth) throw new Error('Firebase not configured');
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name });
+        
         const newProfile: UserProfile = {
             uid: cred.user.uid,
             email: cred.user.email,
@@ -112,9 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             region: '',
         };
 
-        if (isSupabaseConfigured) {
-            await supabase.from('users').insert(newProfile);
-        }
+        setStoredProfile(newProfile);
         setProfile(newProfile);
     };
 

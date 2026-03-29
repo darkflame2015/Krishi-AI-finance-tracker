@@ -342,6 +342,10 @@ textarea {
   color: var(--accent-red);
 }
 
+.stat-change.neutral {
+  color: var(--text-muted);
+}
+
 /* Table */
 .table-container {
   overflow-x: auto;
@@ -428,7 +432,7 @@ tr:hover {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
 
   .grid-4,
   .grid-3,
@@ -513,9 +517,19 @@ tr:hover {
   gap: 0;
   border-bottom: 2px solid var(--border-light);
   margin-bottom: 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 20px;
   font-size: 0.9rem;
   font-weight: 600;
@@ -526,6 +540,8 @@ tr:hover {
   margin-bottom: -2px;
   cursor: pointer;
   transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab.active {

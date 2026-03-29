@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { HiOutlineUserGroup, HiOutlineArrowLeft } from 'react-icons/hi';
 import styles from './groups.module.css';
 
@@ -18,47 +17,75 @@ interface FPOGroup {
     status: 'active' | 'inactive';
 }
 
+const SAMPLE_GROUPS: FPOGroup[] = [
+    {
+        id: 'fpo_1',
+        name: 'Shetkari Sangh FPC',
+        members: 245,
+        portfolioSize: 12500000,
+        riskProfile: 'Low',
+        repaymentAmount: 8500000,
+        amountPaid: 7200000,
+        region: 'Maharashtra',
+        activeSince: '2019-03-15',
+        status: 'active',
+    },
+    {
+        id: 'fpo_2',
+        name: 'Kisan Vikas FPC',
+        members: 180,
+        portfolioSize: 8900000,
+        riskProfile: 'Medium',
+        repaymentAmount: 6200000,
+        amountPaid: 4800000,
+        region: 'Karnataka',
+        activeSince: '2020-07-22',
+        status: 'active',
+    },
+    {
+        id: 'fpo_3',
+        name: 'Agro Cooperative FPC',
+        members: 320,
+        portfolioSize: 15800000,
+        riskProfile: 'Low',
+        repaymentAmount: 11200000,
+        amountPaid: 9800000,
+        region: 'Punjab',
+        activeSince: '2018-01-10',
+        status: 'active',
+    },
+    {
+        id: 'fpo_4',
+        name: 'Rural Farmers FPC',
+        members: 95,
+        portfolioSize: 4200000,
+        riskProfile: 'Medium',
+        repaymentAmount: 3100000,
+        amountPaid: 2100000,
+        region: 'Bihar',
+        activeSince: '2021-05-03',
+        status: 'active',
+    },
+];
+
 export default function GroupsPage() {
     const [groups, setGroups] = useState<FPOGroup[]>([]);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<FPOGroup | null>(null);
 
     useEffect(() => {
-        if (!isSupabaseConfigured) {
-            setLoading(false);
-            return;
+        const stored = localStorage.getItem('krishi_fpo_groups');
+        if (stored) {
+            setGroups(JSON.parse(stored));
+        } else {
+            setGroups(SAMPLE_GROUPS);
+            localStorage.setItem('krishi_fpo_groups', JSON.stringify(SAMPLE_GROUPS));
         }
-
-        const fetchGroups = async () => {
-            const { data, error } = await supabase.from('groups').select('*');
-            if (error) {
-                console.error("Supabase error returning groups:", error);
-            } else if (data) {
-                setGroups(data as FPOGroup[]);
-            }
-            setLoading(false);
-        };
-        fetchGroups();
-
-        const channel = supabase.channel('public:groups')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
-                fetchGroups();
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
+        setLoading(false);
     }, []);
 
-    const handleSelect = async (group: FPOGroup) => {
-        if (!isSupabaseConfigured) return;
-
-        // Fetch latest data
-        const { data } = await supabase.from('groups').select('*').eq('id', group.id).single();
-        if (data) {
-            setSelected(data as FPOGroup);
-        } else {
-            setSelected(group);
-        }
+    const handleSelect = (group: FPOGroup) => {
+        setSelected(group);
     };
 
     if (loading) {

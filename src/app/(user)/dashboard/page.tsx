@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
     HiOutlineCurrencyRupee,
     HiOutlineDocumentText,
@@ -42,24 +41,17 @@ export default function DashboardPage() {
     const [loadingNews, setLoadingNews] = useState(true);
 
     useEffect(() => {
-        if (!profile) return;
-
         const fetchLoans = async () => {
             try {
-                if (!isSupabaseConfigured) return;
-                const { data, error } = await supabase
-                    .from('loans')
-                    .select('*')
-                    .eq('userId', profile.uid)
-                    .order('createdAt', { ascending: false })
-                    .limit(5);
+                const res = await fetch('/api/loans?userId=' + profile?.uid);
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    const items: LoanSummary[] = [];
+                    let balance = 0;
+                    let paid = 0;
 
-                const items: LoanSummary[] = [];
-                let balance = 0;
-                let paid = 0;
-
-                if (data) {
-                    data.forEach((d) => {
+                    data.forEach((d: { id: string; type: string; amount: number; status: string; amountPaid: number; createdAt: string }) => {
                         items.push({
                             id: d.id,
                             type: d.type,
@@ -72,11 +64,11 @@ export default function DashboardPage() {
                             paid += d.amountPaid || 0;
                         }
                     });
-                }
 
-                setLoans(items);
-                setTotalBalance(balance);
-                setTotalPaid(paid);
+                    setLoans(items);
+                    setTotalBalance(balance);
+                    setTotalPaid(paid);
+                }
             } catch (err) {
                 console.error('Error fetching loans:', err);
             } finally {
@@ -96,9 +88,13 @@ export default function DashboardPage() {
             }
         };
 
-        fetchLoans();
+        if (profile?.uid) {
+            fetchLoans();
+        } else {
+            setLoadingLoans(false);
+        }
         fetchNews();
-    }, [profile]);
+    }, [profile?.uid]);
 
     const statusIcon = (status: string) => {
         switch (status) {
@@ -122,7 +118,6 @@ export default function DashboardPage() {
                 <p>Here&apos;s an overview of your agricultural finances</p>
             </div>
 
-            {/* Stat Cards */}
             <div className={styles.stats}>
                 <div className="stat-card">
                     <span className="stat-label">Outstanding Balance</span>
@@ -147,11 +142,10 @@ export default function DashboardPage() {
             </div>
 
             <div className={styles.grid}>
-                {/* Loan Overview */}
                 <div className={styles.section}>
                     <div className={styles.sectionHeader}>
                         <h3><HiOutlineDocumentText /> Loan Applications</h3>
-                        <a href="/loans" className={styles.viewAll}>View All →</a>
+                        <a href="/loans" className={styles.viewAll}>View All</a>
                     </div>
                     {loadingLoans ? (
                         <div className={styles.loading}><div className="spinner" /></div>
@@ -163,7 +157,7 @@ export default function DashboardPage() {
                         </div>
                     ) : (
                         <div className={styles.loanList}>
-                            {loans.map((loan) => (
+                            {loans.slice(0, 5).map((loan) => (
                                 <div key={loan.id} className={styles.loanItem}>
                                     <div className={styles.loanIcon}>{statusIcon(loan.status)}</div>
                                     <div className={styles.loanInfo}>
@@ -180,18 +174,17 @@ export default function DashboardPage() {
                     )}
                 </div>
 
-                {/* News Overview */}
                 <div className={styles.section}>
                     <div className={styles.sectionHeader}>
                         <h3><HiOutlineNewspaper /> Agriculture News</h3>
-                        <a href="/news" className={styles.viewAll}>View All →</a>
+                        <a href="/news" className={styles.viewAll}>View All</a>
                     </div>
                     {loadingNews ? (
                         <div className={styles.loading}><div className="spinner" /></div>
                     ) : news.length === 0 ? (
                         <div className={styles.empty}>
                             <HiOutlineNewspaper size={32} />
-                            <p>No news available. Configure your NEWS_API_KEY to see latest agriculture updates.</p>
+                            <p>No news available. Configure your NEWS_API_KEY for updates.</p>
                         </div>
                     ) : (
                         <div className={styles.newsList}>
@@ -207,7 +200,6 @@ export default function DashboardPage() {
                     )}
                 </div>
 
-                {/* Pay Section */}
                 <div className={styles.section}>
                     <div className={styles.sectionHeader}>
                         <h3><HiOutlineCurrencyRupee /> Quick Payment</h3>
@@ -230,7 +222,6 @@ export default function DashboardPage() {
                     )}
                 </div>
 
-                {/* Recent Notifications */}
                 <div className={styles.section}>
                     <div className={styles.sectionHeader}>
                         <h3>Recent Updates</h3>

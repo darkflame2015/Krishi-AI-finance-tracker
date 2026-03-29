@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { updateProfile } from 'firebase/auth';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import styles from './settings.module.css';
 
 export default function SettingsPage() {
@@ -18,16 +17,15 @@ export default function SettingsPage() {
         if (!user || !profile) return;
         setSaving(true);
         try {
-            // Update Firebase Auth profile
             await updateProfile(user, { displayName: name });
 
-            // Update Supabase profile
-            if (isSupabaseConfigured) {
-                await supabase.from('users').update({
-                    displayName: name,
-                    region: region,
-                }).eq('uid', user.uid);
-            }
+            const profiles = JSON.parse(localStorage.getItem('krishi_user_profiles') || '{}');
+            profiles[user.uid] = {
+                ...profile,
+                displayName: name,
+                region: region,
+            };
+            localStorage.setItem('krishi_user_profiles', JSON.stringify(profiles));
 
             setSuccess('Profile updated successfully!');
             setTimeout(() => setSuccess(''), 3000);

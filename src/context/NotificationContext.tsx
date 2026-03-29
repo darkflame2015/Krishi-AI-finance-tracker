@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 
 export interface Notification {
@@ -24,59 +23,59 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+const STORAGE_KEY = 'krishi_notifications';
+
+function getStoredNotifications(): Notification[] {
+    if (typeof window === 'undefined') return [];
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
+}
+
+function setStoredNotifications(notifications: Notification[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+    } catch (err) {
+        console.error('Failed to save notifications:', err);
+    }
+}
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     useEffect(() => {
-        if (!user || !isSupabaseConfigured) {
+        if (!user) {
             setNotifications([]);
             return;
         }
-
-        const fetchNotifications = async () => {
-            const { data } = await supabase
-                .from('notifications')
-                .select('*')
-                .eq('userId', user.uid)
-                .order('createdAt', { ascending: false });
-
-            if (data) setNotifications(data as Notification[]);
-        };
-
-        fetchNotifications();
-
-        const channel = supabase.channel(`public:notifications:userId=eq.${user.uid}`)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'notifications', filter: `userId=eq.${user.uid}` },
-                (payload) => {
-                    fetchNotifications();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        
+        const stored = getStoredNotifications();
+        const userNotifications = stored.filter(n => n.userId === user.uid);
+        setNotifications(userNotifications);
     }, [user]);
+
+    useEffect(() => {
+        if (user && notifications.length > 0) {
+            const allNotifications = getStoredNotifications();
+            const otherNotifications = allNotifications.filter(n => n.userId !== user.uid);
+            setStoredNotifications([...otherNotifications, ...notifications]);
+        }
+    }, [notifications, user]);
 
     const unreadCount = notifications.filter((n) => !n.read).length;
 
     const markAsRead = async (id: string) => {
-        if (!isSupabaseConfigured) return;
-        await supabase.from('notifications').update({ read: true }).eq('id', id);
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     };
 
     const markAllAsRead = useCallback(async () => {
-        if (!isSupabaseConfigured) return;
-        const unread = notifications.filter((n) => !n.read);
-        if (unread.length === 0) return;
-
-        await supabase.from('notifications').update({ read: true }).in('id', unread.map(n => n.id));
         setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    }, [notifications]);
+    }, []);
 
     const sendNotification = async (
         userId: string,
@@ -84,14 +83,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         message: string,
         type: Notification['type'] = 'info'
     ) => {
-        if (!isSupabaseConfigured) return;
-        await supabase.from('notifications').insert({
+        const newNotification: Notification = {
+            id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             userId,
             title,
             message,
             type,
             read: false,
-        });
+            createdAt: new Date().toISOString(),
+        };
+        
+        setNotifications((prev) => [newNotification, ...prev]);
     };
 
     return (

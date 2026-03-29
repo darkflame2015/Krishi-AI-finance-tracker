@@ -1,97 +1,73 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
     HiOutlineClock,
     HiOutlineCheckCircle,
     HiOutlineXCircle,
     HiOutlineDocumentAdd,
-    HiOutlineUpload,
 } from 'react-icons/hi';
 import styles from './loans.module.css';
 
 interface Loan {
     id: string;
+    userId: string;
+    userName?: string;
+    userEmail?: string;
     type: string;
     amount: number;
-    status: string;
+    status: 'pending' | 'under_review' | 'approved' | 'rejected';
     purpose: string;
     documents: string[];
-    createdAt: string;
-    updatedAt: string;
     amountPaid: number;
     adminNotes?: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export default function LoansPage() {
     const { profile } = useAuth();
     const [loans, setLoans] = useState<Loan[]>([]);
     const [loading, setLoading] = useState(true);
-    const [uploading, setUploading] = useState<string | null>(null);
+
+    const fetchLoans = useCallback(async () => {
+        if (!profile?.uid) return;
+        try {
+            const res = await fetch(`/api/loans?userId=${profile.uid}`);
+            if (res.ok) {
+                const data = await res.json();
+                setLoans(data);
+            }
+        } catch (err) {
+            console.error("Error fetching loans:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [profile?.uid]);
 
     useEffect(() => {
-        if (!profile || !isSupabaseConfigured) {
-            setLoading(false);
-            return;
-        }
-
-        const fetchLoans = async () => {
-            const { data, error } = await supabase
-                .from('loans')
-                .select('*')
-                .eq('userId', profile.uid)
-                .order('createdAt', { ascending: false });
-
-            if (error) {
-                console.error("Supabase error returning loans:", error);
-            } else if (data) {
-                setLoans(data as Loan[]);
-            }
-            setLoading(false);
-        };
-
         fetchLoans();
+    }, [fetchLoans]);
 
-        const channel = supabase.channel(`public:loans:userId=eq.${profile.uid}`)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'loans', filter: `userId=eq.${profile.uid}` },
-                () => { fetchLoans(); }
-            )
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-    }, [profile]);
-
-    const handleUpload = async (loanId: string, file: File) => {
-        if (!profile || !isSupabaseConfigured) return;
-        setUploading(loanId);
-        try {
-            const fileExt = file.name.split('.').pop();
-            const filePath = `${profile.uid}/${loanId}/${Date.now()}.${fileExt}`;
-
-            const { error: uploadError } = await supabase.storage.from('documents').upload(filePath, file);
-            if (uploadError) throw uploadError;
-
-            const { data: urlData } = supabase.storage.from('documents').getPublicUrl(filePath);
-            const url = urlData.publicUrl;
-
-            // Fetch current documents array
-            const { data: currentLoan } = await supabase.from('loans').select('documents').eq('id', loanId).single();
-            const currentDocs = currentLoan?.documents || [];
-
-            // Append new document
-            await supabase.from('loans').update({
-                documents: [...currentDocs, url],
-            }).eq('id', loanId);
-
-        } catch (err) {
-            console.error('Upload failed:', err);
-        } finally {
-            setUploading(null);
-        }
+    const handleDocumentUpload = async (loanId: string, file: File) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const dataUrl = e.target?.result as string;
+            const updatedDocs = [...(loans.find(l => l.id === loanId)?.documents || []), dataUrl];
+            
+            try {
+                await fetch(`/api/loans/${loanId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ documents: updatedDocs }),
+                });
+                fetchLoans();
+            } catch (err) {
+                console.error('Error uploading document:', err);
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     const statusInfo = (status: string) => {
@@ -155,7 +131,6 @@ export default function LoansPage() {
                                     <p className={styles.purpose}>{loan.purpose}</p>
                                 )}
 
-                                {/* Progress */}
                                 <div className={styles.progress}>
                                     <div className={styles.progressSteps}>
                                         <span className={styles.stepActive}>Applied</span>
@@ -181,7 +156,6 @@ export default function LoansPage() {
                                     </div>
                                 )}
 
-                                {/* Payment Progress for approved loans */}
                                 {loan.status === 'approved' && loan.amountPaid > 0 && (
                                     <div className={styles.repayment}>
                                         <span>Repayment: ₹{loan.amountPaid.toLocaleString('en-IN')} / ₹{loan.amount.toLocaleString('en-IN')}</span>
@@ -191,7 +165,6 @@ export default function LoansPage() {
                                     </div>
                                 )}
 
-                                {/* Documents */}
                                 <div className={styles.docs}>
                                     <span className={styles.docsLabel}>
                                         Documents ({loan.documents?.length || 0})
@@ -204,23 +177,15 @@ export default function LoansPage() {
 
                                     {loan.status !== 'rejected' && (
                                         <label className={styles.uploadBtn}>
-                                            {uploading === loan.id ? (
-                                                <span>Uploading...</span>
-                                            ) : (
-                                                <>
-                                                    <HiOutlineUpload />
-                                                    <span>Upload Document</span>
-                                                </>
-                                            )}
+                                            <span>Upload Document</span>
                                             <input
                                                 type="file"
                                                 hidden
                                                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                                                 onChange={(e) => {
                                                     const file = e.target.files?.[0];
-                                                    if (file) handleUpload(loan.id, file);
+                                                    if (file) handleDocumentUpload(loan.id, file);
                                                 }}
-                                                disabled={uploading === loan.id}
                                             />
                                         </label>
                                     )}

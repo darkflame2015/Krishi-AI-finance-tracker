@@ -2,11 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, BarChart, Bar,
-} from 'recharts';
 import { HiOutlineShieldCheck, HiOutlineTrendingUp, HiOutlineTrendingDown } from 'react-icons/hi';
 import styles from './analytics.module.css';
 
@@ -29,6 +24,13 @@ interface PaymentEntry {
     month: string;
 }
 
+interface LoanData {
+    id: string;
+    amount: number;
+    amountPaid: number;
+    status: string;
+}
+
 export default function AnalyticsPage() {
     const { profile } = useAuth();
     const [risk, setRisk] = useState<RiskAssessment | null>(null);
@@ -38,70 +40,50 @@ export default function AnalyticsPage() {
     const [totalPaid, setTotalPaid] = useState(0);
 
     useEffect(() => {
-        if (!profile || !isSupabaseConfigured) {
-            setLoading(false);
-            return;
-        }
-
         const fetchData = async () => {
             try {
-                // Fetch loans
-                const { data: loansData } = await supabase
-                    .from('loans')
-                    .select('*')
-                    .eq('userId', profile.uid);
+                const res = await fetch('/api/loans?userId=' + profile?.uid);
+                let loansData: LoanData[] = [];
+                
+                if (res.ok) {
+                    loansData = await res.json();
+                }
 
                 let loanTotal = 0;
                 let paidTotal = 0;
 
-                if (loansData) {
-                    loansData.forEach((d) => {
-                        if (d.status === 'approved') {
-                            loanTotal += d.amount || 0;
-                            paidTotal += d.amountPaid || 0;
-                        }
-                    });
-                }
+                loansData.forEach((d) => {
+                    if (d.status === 'approved') {
+                        loanTotal += d.amount || 0;
+                        paidTotal += d.amountPaid || 0;
+                    }
+                });
 
                 setTotalLoan(loanTotal);
                 setTotalPaid(paidTotal);
 
-                // Fetch payments
-                const { data: paymentsData } = await supabase
-                    .from('payments')
-                    .select('*')
-                    .eq('userId', profile.uid)
-                    .order('date', { ascending: true });
-
-                const paymentList: PaymentEntry[] = (paymentsData || []).map((d) => {
-                    const date = d.date ? new Date(d.date) : new Date();
-                    return {
-                        amount: d.amount,
-                        date: date.toLocaleDateString('en-IN'),
-                        month: date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
-                    };
-                });
-
+                const storedPayments = localStorage.getItem('krishi_payments_' + profile?.uid);
+                const paymentList: PaymentEntry[] = storedPayments ? JSON.parse(storedPayments) : [];
+                
                 setPayments(paymentList);
 
-                // Call analytics API
                 if (loanTotal > 0) {
-                    const res = await fetch('/api/analytics', {
+                    const res2 = await fetch('/api/analytics', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             totalLoanAmount: loanTotal,
                             amountPaid: paidTotal,
-                            monthlyIncome: 30000, // Default estimate
+                            monthlyIncome: 30000,
                             loanTenureMonths: 24,
                             paymentHistory: paymentList.map((p, i) => ({
                                 amount: p.amount,
                                 date: p.date,
-                                onTime: i % 3 !== 2, // Simulate based on pattern
+                                onTime: i % 3 !== 2,
                             })),
                         }),
                     });
-                    const data = await res.json();
+                    const data = await res2.json();
                     setRisk(data);
                 }
             } catch (err) {
@@ -111,10 +93,12 @@ export default function AnalyticsPage() {
             }
         };
 
-        fetchData();
-    }, [profile]);
-
-    const COLORS = ['#2d7a3a', '#c48a1a', '#c44a4a', '#3a6bc4'];
+        if (profile?.uid) {
+            fetchData();
+        } else {
+            setLoading(false);
+        }
+    }, [profile?.uid]);
 
     const riskColor = (level: string) => {
         switch (level) {
@@ -145,7 +129,6 @@ export default function AnalyticsPage() {
                 </div>
             ) : (
                 <>
-                    {/* Risk Summary */}
                     {risk && (
                         <div className={styles.riskGrid}>
                             <div className={styles.riskCard}>
@@ -201,7 +184,6 @@ export default function AnalyticsPage() {
                         </div>
                     )}
 
-                    {/* Factors */}
                     {risk && (
                         <div className={styles.factorsCard}>
                             <h3>Risk Factors Analysis</h3>
@@ -230,23 +212,11 @@ export default function AnalyticsPage() {
                         </div>
                     )}
 
-                    {/* Payment Chart */}
                     <div className={styles.chartSection}>
                         <div className={styles.chartCard}>
                             <h3>Payment History</h3>
                             {payments.length > 0 ? (
-                                <ResponsiveContainer width="100%" height={280}>
-                                    <BarChart data={payments}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                                        <YAxis tick={{ fontSize: 12 }} />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: 8, border: '1px solid var(--border-light)' }}
-                                            formatter={(value) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Amount']}
-                                        />
-                                        <Bar dataKey="amount" fill="var(--accent-green)" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                <p className={styles.noData}>Payment tracking coming soon</p>
                             ) : (
                                 <p className={styles.noData}>No payment data available yet.</p>
                             )}
@@ -254,30 +224,10 @@ export default function AnalyticsPage() {
 
                         <div className={styles.chartCard}>
                             <h3>Loan Breakdown</h3>
-                            <ResponsiveContainer width="100%" height={280}>
-                                <PieChart>
-                                    <Pie
-                                        data={[
-                                            { name: 'Paid', value: totalPaid },
-                                            { name: 'Outstanding', value: totalLoan - totalPaid },
-                                        ]}
-                                        cx="50%" cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={100}
-                                        dataKey="value"
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        label={(props: any) => `${props.name || ''} ${((props.percent) * 100).toFixed(0)}%`}
-                                    >
-                                        <Cell fill="var(--accent-green)" />
-                                        <Cell fill="var(--border-medium)" />
-                                    </Pie>
-                                    <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
-                                </PieChart>
-                            </ResponsiveContainer>
+                            <p className={styles.noData}>Total: ₹{totalLoan.toLocaleString('en-IN')}</p>
                         </div>
                     </div>
 
-                    {/* On Track */}
                     {risk && (
                         <div className={styles.trackCard}>
                             <h3>Repayment Track</h3>

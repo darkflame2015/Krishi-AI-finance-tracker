@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import {
     HiOutlineCheckCircle,
     HiOutlineXCircle,
@@ -17,12 +16,12 @@ import styles from './admin.module.css';
 interface Loan {
     id: string;
     userId: string;
-    userName: string;
-    userEmail: string;
+    userName?: string;
+    userEmail?: string;
     type: string;
     amount: number;
     purpose: string;
-    status: string;
+    status: 'pending' | 'under_review' | 'approved' | 'rejected';
     documents: string[];
     amountPaid: number;
     landSize?: number;
@@ -42,43 +41,38 @@ export default function AdminPage() {
     const [processing, setProcessing] = useState(false);
     const [filter, setFilter] = useState<string>('all');
 
-    useEffect(() => {
-        if (!isSupabaseConfigured) {
-            setLoading(false);
-            return;
-        }
-
-        const fetchLoans = async () => {
-            const { data, error } = await supabase.from('loans').select('*').order('createdAt', { ascending: false });
-            if (data) {
-                setLoans(data as Loan[]);
+    const fetchLoans = useCallback(async () => {
+        try {
+            const res = await fetch('/api/loans');
+            if (res.ok) {
+                const data = await res.json();
+                setLoans(data);
             }
+        } catch (err) {
+            console.error("Error fetching loans:", err);
+        } finally {
             setLoading(false);
-        };
-        fetchLoans();
-
-        const channel = supabase.channel('public:loans')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'loans' }, () => {
-                fetchLoans();
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
+        }
     }, []);
+
+    useEffect(() => {
+        fetchLoans();
+    }, [fetchLoans]);
 
     const handleAction = async (loan: Loan, action: 'approved' | 'rejected' | 'under_review') => {
         if (!profile) return;
         setProcessing(true);
         try {
-            if (isSupabaseConfigured) {
-                await supabase.from('loans').update({
-                    status: action,
-                    adminNotes: adminNotes || null,
-                    updatedAt: new Date().toISOString(),
-                }).eq('id', loan.id);
+            const res = await fetch(`/api/loans/${loan.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: action, adminNotes }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Failed to update loan');
             }
 
-            // Send notification to user
             const actionLabel = action === 'approved' ? 'Approved' : action === 'rejected' ? 'Rejected' : 'Under Review';
             const type = action === 'approved' ? 'success' : action === 'rejected' ? 'error' : 'info';
 
@@ -91,6 +85,7 @@ export default function AdminPage() {
 
             setSelectedLoan(null);
             setAdminNotes('');
+            fetchLoans();
         } catch (err) {
             console.error('Action failed:', err);
         } finally {
@@ -112,7 +107,6 @@ export default function AdminPage() {
         return <div className="loading-container"><div className="spinner" /></div>;
     }
 
-    // Detail View
     if (selectedLoan) {
         return (
             <div className={styles.page}>
@@ -163,7 +157,6 @@ export default function AdminPage() {
                         </div>
                     )}
 
-                    {/* Verification */}
                     <div className={styles.verifySection}>
                         <h4>User Info</h4>
                         <div className={styles.verifyRow}>
@@ -176,11 +169,10 @@ export default function AdminPage() {
                         </div>
                         <div className={styles.verifyRow}>
                             <span>Email:</span>
-                            <span>{selectedLoan.userEmail}</span>
+                            <span>{selectedLoan.userEmail || 'N/A'}</span>
                         </div>
                     </div>
 
-                    {/* Documents */}
                     <div className={styles.docsSection}>
                         <h4>Documents ({selectedLoan.documents?.length || 0})</h4>
                         {selectedLoan.documents?.length > 0 ? (
@@ -196,7 +188,6 @@ export default function AdminPage() {
                         )}
                     </div>
 
-                    {/* Admin Actions */}
                     <div className={styles.actionSection}>
                         <h4>Admin Action</h4>
                         <div className="form-group">
@@ -239,7 +230,6 @@ export default function AdminPage() {
         );
     }
 
-    // Dashboard View
     return (
         <div className={styles.page}>
             <div className="page-header">
@@ -247,7 +237,6 @@ export default function AdminPage() {
                 <p>Review and process loan applications</p>
             </div>
 
-            {/* Stats */}
             <div className={styles.statsGrid}>
                 <div className="stat-card">
                     <span className="stat-label">Total Applications</span>
@@ -267,7 +256,6 @@ export default function AdminPage() {
                 </div>
             </div>
 
-            {/* Filter */}
             <div className={styles.filterRow}>
                 {['all', 'pending', 'under_review', 'approved', 'rejected'].map((f) => (
                     <button
@@ -285,7 +273,6 @@ export default function AdminPage() {
                 ))}
             </div>
 
-            {/* Loan List */}
             {filteredLoans.length === 0 ? (
                 <div className="empty-state">
                     <HiOutlineDocumentText size={48} />

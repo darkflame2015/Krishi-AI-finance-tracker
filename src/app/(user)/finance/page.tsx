@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useNotifications } from '@/context/NotificationContext';
 import {
     HiOutlineCurrencyRupee,
@@ -21,21 +20,17 @@ export default function FinancePage() {
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState('');
 
-    // Calculator state
     const [loanCalcAmount, setLoanCalcAmount] = useState(100000);
     const [interestRate, setInterestRate] = useState(7);
     const [tenure, setTenure] = useState(12);
 
-    // Loan application state
     const [loanType, setLoanType] = useState('Crop Loan');
     const [loanAmount, setLoanAmount] = useState('');
     const [loanPurpose, setLoanPurpose] = useState('');
 
-    // KCC application state
     const [kccLandSize, setKccLandSize] = useState('');
     const [kccCropType, setKccCropType] = useState('');
 
-    // Calculator logic
     const monthlyRate = interestRate / 100 / 12;
     const emi =
         monthlyRate > 0
@@ -50,18 +45,23 @@ export default function FinancePage() {
         if (!profile) return;
         setSubmitting(true);
         try {
-            if (isSupabaseConfigured) {
-                await supabase.from('loans').insert({
+            const res = await fetch('/api/loans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     userId: profile.uid,
+                    userName: profile.displayName || '',
+                    userEmail: profile.email || '',
                     type: loanType,
-                    amount: parseFloat(loanAmount),
+                    amount: loanAmount,
                     purpose: loanPurpose,
-                    status: 'pending',
-                    documents: [],
-                    amountPaid: 0,
-                });
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Failed to submit loan');
             }
-            // Notify all admins (we'll create a notification for the user's own record)
+
             await sendNotification(
                 profile.uid,
                 'Loan Application Submitted',
@@ -83,19 +83,27 @@ export default function FinancePage() {
         if (!profile) return;
         setSubmitting(true);
         try {
-            const kccAmount = parseFloat(kccLandSize) * 50000; // Estimated KCC limit
+            const kccAmount = parseFloat(kccLandSize) * 50000;
 
-            if (isSupabaseConfigured) {
-                await supabase.from('loans').insert({
+            const res = await fetch('/api/loans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
                     userId: profile.uid,
+                    userName: profile.displayName || '',
+                    userEmail: profile.email || '',
                     type: 'Kisan Credit Card',
                     amount: kccAmount,
                     purpose: `KCC for ${kccCropType} cultivation on ${kccLandSize} acres`,
-                    status: 'pending',
-                    documents: [],
-                    amountPaid: 0,
-                });
+                    landSize: kccLandSize,
+                    cropType: kccCropType,
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Failed to submit KCC');
             }
+
             await sendNotification(
                 profile.uid,
                 'KCC Application Submitted',
@@ -140,7 +148,6 @@ export default function FinancePage() {
                 </div>
             )}
 
-            {/* Overview Tab */}
             {activeTab === 'overview' && (
                 <div className={styles.overview}>
                     <div className={styles.infoCard}>
@@ -168,7 +175,6 @@ export default function FinancePage() {
                 </div>
             )}
 
-            {/* Calculator Tab */}
             {activeTab === 'calculator' && (
                 <div className={styles.calculator}>
                     <div className={styles.calcInputs}>
@@ -245,7 +251,6 @@ export default function FinancePage() {
                 </div>
             )}
 
-            {/* Apply Loan Tab */}
             {activeTab === 'apply-loan' && (
                 <div className="card" style={{ maxWidth: 560 }}>
                     <h3 style={{ marginBottom: 20 }}>Loan Application</h3>
@@ -294,7 +299,6 @@ export default function FinancePage() {
                 </div>
             )}
 
-            {/* Apply KCC Tab */}
             {activeTab === 'apply-kcc' && (
                 <div className="card" style={{ maxWidth: 560 }}>
                     <h3 style={{ marginBottom: 20 }}>Kisan Credit Card Application</h3>
