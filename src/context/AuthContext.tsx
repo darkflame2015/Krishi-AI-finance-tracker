@@ -38,7 +38,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const PROFILES_KEY = 'krishi_user_profiles';
 
 function getAdminEmails(): string[] {
-    const raw = process.env.NEXT_PUBLIC_ADMIN_EMAILS || '';
+    const raw = process.env.NEXT_PUBLIC_ADMIN_EMAILS || 'dsagnik2005@gmail.com';
     return raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 }
 
