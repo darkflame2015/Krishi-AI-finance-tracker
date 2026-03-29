@@ -50,8 +50,8 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
     const navItems = isAdmin ? adminNavItems : userNavItems;
 
     const formatTime = (n: Notification) => {
-        if (!n.createdAt?.toDate) return '';
-        const diff = Date.now() - n.createdAt.toDate().getTime();
+        if (!n.createdAt) return '';
+        const diff = Date.now() - new Date(n.createdAt).getTime();
         const mins = Math.floor(diff / 60000);
         if (mins < 1) return 'Just now';
         if (mins < 60) return `${mins}m ago`;
